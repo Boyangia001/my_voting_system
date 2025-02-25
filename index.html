@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实时投票系统</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.6.1/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-cloud/1.2.5/d3.layout.cloud.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .question-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .question {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .options {
+            margin-bottom: 20px;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .btn:hover {
+            background-color: #45a049;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+        .result-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+        }
+        #wordCloudContainer {
+            height: 300px;
+            position: relative;
+        }
+        .word {
+            position: absolute;
+            pointer-events: none;
+        }
+        .tab {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            border-radius: 5px 5px 0 0;
+        }
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 16px;
+        }
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        .tab button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .tabcontent {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            animation: fadeEffect 1s;
+        }
+        @keyframes fadeEffect {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+        #adminSection {
+            margin-top: 40px;
+            padding: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+        }
+        .hidden {
+            display: none;
+        }
+        #votingForm input[type="text"], #votingForm input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>实时投票系统</h1>
+            <p>请参与以下三个问题的投票</p>
+        </div>
+        
+        <div class="tab">
+            <button class="tablinks active" onclick="openTab(event, 'voting')">投票</button>
+            <button class="tablinks" onclick="openTab(event, 'results')">结果</button>
+            <button class="tablinks" onclick="openTab(event, 'admin')">管理</button>
+        </div>
+        
+        <div id="voting" class="tabcontent" style="display: block;">
+            <form id="votingForm">
+                <div class="question-container">
+                    <div class="question">问题1: 您是否使用过我们的产品?</div>
+                    <div class="options">
+                        <input type="radio" id="yes" name="usage" value="是" required>
+                        <label for="yes">是</label><br>
+                        <input type="radio" id="no" name="usage" value="否">
+                        <label for="no">否</label>
+                    </div>
+                </div>
+                
+                <div class="question-container">
+                    <div class="question">问题2: 请输入您最喜欢的产品名称</div>
+                    <input type="text" id="product" name="product" placeholder="例如: iPhone" required>
+                </div>
+                
+                <div class="question-container">
+                    <div class="question">问题3: 您每天花多少小时使用电子产品?</div>
+                    <input type="number" id="hours" name="hours" min="0" max="24" step="0.01" placeholder="0-24小时 (最多两位小数)" required>
+                </div>
+                
+                <button type="submit" class="btn">提交投票</button>
+            </form>
+        </div>
+        
+        <div id="results" class="tabcontent">
+            <div class="question-container">
+                <div class="question">问题1: 您是否使用过我们的产品?</div>
+                <div class="chart-container">
+                    <canvas id="yesNoChart"></canvas>
+                </div>
+            </div>
+            
+            <div class="question-container">
+                <div class="question">问题2: 请输入您最喜欢的产品名称</div>
+                <div id="wordCloudContainer" class="chart-container"></div>
+            </div>
+            
+            <div class="question-container">
+                <div class="question">问题3: 您每天花多少小时使用电子产品?</div>
+                <div class="chart-container">
+                    <canvas id="hoursChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div id="admin" class="tabcontent">
+            <div id="adminSection">
+                <h2>管理面板</h2>
+                <p>总投票人数: <span id="totalVotes">0</span></p>
+                <button id="resetVotes" class="btn btn-secondary">重置所有投票</button>
+                <div id="exportSection" class="hidden">
+                    <h3>导出数据</h3>
+                    <button id="exportData" class="btn">导出CSV</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化数据
+        let votes = {
+            usage: { '是': 0, '否': 0 },
+            products: {},
+            hours: []
+        };
+        
+        // 模拟数据库
+        function saveVote(data) {
+            // 更新统计数据
+            votes.usage[data.usage]++;
+            
+            if (votes.products[data.product]) {
+                votes.products[data.product]++;
+            } else {
+                votes.products[data.product] = 1;
+            }
+            
+            votes.hours.push(parseFloat(data.hours));
+            
+            // 更新管理面板
+            updateAdminPanel();
+            
+            // 更新图表
+            updateCharts();
+        }
+        
+        // 表单提交处理
+        document.getElementById('votingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = {
+                usage: document.querySelector('input[name="usage"]:checked').value,
+                product: document.getElementById('product').value,
+                hours: document.getElementById('hours').value
+            };
+            
+            saveVote(formData);
+            
+            // 重置表单
+            this.reset();
+            
+            // 显示提交成功提示
+            alert('投票成功提交!');
+            
+            // 切换到结果标签
+            document.querySelector('button[onclick="openTab(event, \'results\')"]').click();
+        });
+        
+        // 重置投票
+        document.getElementById('resetVotes').addEventListener('click', function() {
+            if (confirm('确定要重置所有投票数据吗?')) {
+                votes = {
+                    usage: { '是': 0, '否': 0 },
+                    products: {},
+                    hours: []
+                };
+                updateCharts();
+                updateAdminPanel();
+                alert('所有投票数据已重置!');
+            }
+        });
+        
+        // 更新管理面板
+        function updateAdminPanel() {
+            const totalVotes = votes.hours.length;
+            document.getElementById('totalVotes').textContent = totalVotes;
+            
+            // 如果有投票，显示导出部分
+            if (totalVotes > 0) {
+                document.getElementById('exportSection').classList.remove('hidden');
+            } else {
+                document.getElementById('exportSection').classList.add('hidden');
+            }
+        }
+        
+        // 更新所有图表
+        function updateCharts() {
+            updateYesNoChart();
+            updateWordCloud();
+            updateHoursChart();
+        }
+        
+        // 是/否图表
+        let yesNoChart;
+        function updateYesNoChart() {
+            const ctx = document.getElementById('yesNoChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (yesNoChart) {
+                yesNoChart.destroy();
+            }
+            
+            yesNoChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: ['是', '否'],
+                    datasets: [{
+                        data: [votes.usage['是'], votes.usage['否']],
+                        backgroundColor: ['#4CAF50', '#f44336'],
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        title: {
+                            display: true,
+                            text: '是否使用过我们的产品'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 词云图
+        function updateWordCloud() {
+            const container = document.getElementById('wordCloudContainer');
+            container.innerHTML = '';
+            
+            // 转换数据格式
+            const words = Object.keys(votes.products).map(key => {
+                return {
+                    text: key,
+                    size: 10 + (votes.products[key] * 5) // 基础大小 + 根据频率调整
+                };
+            });
+            
+            if (words.length === 0) return;
+            
+            // 设置画布尺寸
+            const width = container.offsetWidth;
+            const height = container.offsetHeight;
+            
+            // 创建词云
+            const layout = d3.layout.cloud()
+                .size([width, height])
+                .words(words)
+                .padding(5)
+                .rotate(0)
+                .fontSize(d => d.size)
+                .on("end", draw);
+            
+            layout.start();
+            
+            function draw(words) {
+                // 创建颜色比例尺
+                const color = d3.scaleOrdinal(d3.schemeCategory10);
+                
+                words.forEach(word => {
+                    const div = document.createElement('div');
+                    div.className = 'word';
+                    div.textContent = word.text;
+                    div.style.fontSize = word.size + 'px';
+                    div.style.color = color(word.text);
+                    div.style.left = (word.x + width / 2) + 'px';
+                    div.style.top = (word.y + height / 2) + 'px';
+                    container.appendChild(div);
+                });
+            }
+        }
+        
+        // 小时柱状图
+        let hoursChart;
+        function updateHoursChart() {
+            const ctx = document.getElementById('hoursChart').getContext('2d');
+            
+            // 计算数据分布
+            const bins = [0, 0, 0, 0, 0, 0]; // 0-4, 4-8, 8-12, 12-16, 16-20, 20-24
+            const labels = ['0-4', '4-8', '8-12', '12-16', '16-20', '20-24'];
+            
+            votes.hours.forEach(hour => {
+                const binIndex = Math.min(5, Math.floor(hour / 4));
+                bins[binIndex]++;
+            });
+            
+            // 销毁现有图表
+            if (hoursChart) {
+                hoursChart.destroy();
+            }
+            
+            hoursChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '人数',
+                        data: bins,
+                        backgroundColor: '#4CAF50',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '人数'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: '小时范围'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: '每天使用电子产品的时间分布'
+                        }
+                    }
+                }
+            });
+        }
+        
+        // 导出数据为CSV
+        document.getElementById('exportData').addEventListener('click', function() {
+            let csv = 'usage,product,hours\n';
+            
+            // 获取所有产品名称
+            const products = Object.keys(votes.products);
+            
+            // 模拟用户数据
+            for (let i = 0; i < votes.hours.length; i++) {
+                const usage = Math.random() < (votes.usage['是'] / votes.hours.length) ? '是' : '否';
+                const product = products[Math.floor(Math.random() * products.length)];
+                const hour = votes.hours[i];
+                
+                csv += `${usage},${product},${hour}\n`;
+            }
+            
+            // 创建下载链接
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.setAttribute('href', url);
+            link.setAttribute('download', '投票数据.csv');
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+        
+        // 标签切换功能
+        function openTab(evt, tabName) {
+            let i, tabcontent, tablinks;
+            
+            // 隐藏所有标签内容
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            
+            // 取消所有标签的active类
+            tablinks = document.getElementsByClassName("tablinks");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            
+            // 显示当前标签，添加active类
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+            
+            // 如果切换到结果标签，更新图表
+            if (tabName === 'results') {
+                updateCharts();
+            }
+        }
+        
+        // 初始化图表
+        updateYesNoChart();
+        updateWordCloud();
+        updateHoursChart();
+        
+        // 添加一些示例数据
+        function addSampleData() {
+            const sampleProducts = ['iPhone', '华为', '小米', 'Samsung', 'OPPO', 'vivo', '一加', 'iPad', 'MacBook', 'Surface'];
+            
+            // 添加30个样本数据
+            for (let i = 0; i < 30; i++) {
+                const usage = Math.random() > 0.3 ? '是' : '否';
+                const productIndex = Math.floor(Math.random() * sampleProducts.length);
+                const product = sampleProducts[productIndex];
+                const hours = (Math.random() * 24).toFixed(2);
+                
+                saveVote({
+                    usage: usage,
+                    product: product,
+                    hours: hours
+                });
+            }
+        }
+        
+        // 取消注释下面的行来添加示例数据
+        // addSampleData();
+    </script>
+</body>
+</html>
